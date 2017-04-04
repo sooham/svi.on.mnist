@@ -1,0 +1,1 @@
+A working example of Bayesian Logistic Regression using Stochastic Variational Inference. Run `svi.py` to  begin training SVI model and trace Evidence Lower Bound (ELBO), training and test set performance.
