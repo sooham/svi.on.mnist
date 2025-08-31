@@ -1,0 +1,12 @@
+[project]
+name = "svi-on-mnist"
+version = "0.1.0"
+description = "A working example of Bayesian Logistic Regression using Stochastic Variational Inference"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "autograd",
+    "matplotlib",
+    "numpy",
+    "future",
+]
