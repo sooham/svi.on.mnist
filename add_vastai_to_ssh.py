@@ -148,14 +148,12 @@ def remove_host_from_config(config_path, host_name):
             # Check if this is the host to remove
             if re.match(rf'Host\s+{re.escape(host_name)}\s*$', line.strip()):
                 skip = True
+                continue  # Don't add this line
             else:
-                skip = False
-        
-        if not skip:
-            new_lines.append(line)
-        elif line.strip().startswith('Host '):
-            # Next host started, stop skipping
-            skip = False
+                skip = False  # Different host, stop skipping
+                new_lines.append(line)
+        elif not skip:
+            # Only add non-Host lines if we're not skipping
             new_lines.append(line)
     
     with open(config_path, 'w') as f:
