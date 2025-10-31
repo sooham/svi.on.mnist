@@ -194,7 +194,9 @@ class SudokuGenerator:
             puzzle_grid = complete_sudoku.grid.copy()
         
         # Determine number of cells to remove based on difficulty
-        if difficulty == 'easy':
+        if difficulty == 'solved':
+            cells_to_remove = 0
+        elif difficulty == 'easy':
             cells_to_remove = random.randint(41, 46)  # 35-40 clues remaining
         elif difficulty == 'hard':
             cells_to_remove = random.randint(51, 56)  # 25-30 clues remaining
@@ -308,3 +310,141 @@ class SudokuGenerator:
         
         return targets, position, puzzles, puzzle_batch
 
+    def generate_diffusion_sequence(self, size=1):
+        """
+        Generate diffusion sequences from completely masked to completely solved sudoku grids.
+        
+        Args:
+            size: Number of sequences to generate
+            
+        Returns:
+            sequences: Array of shape (size, 82, 9, 9) containing the diffusion sequences
+                      where T=0 is completely masked (all zeros) and T=81 is completely solved
+        """
+        if self.backend == 'torch':
+            dtype = torch.int8 if self.bit_width == '4bit' else torch.int32
+            sequences = torch.zeros((size, 82, 9, 9), dtype=dtype, device=self.device)
+            
+            for i in range(size):
+                # Generate a complete valid sudoku
+                complete_sudoku = self.generate_valid_sudoku()
+                complete_grid = complete_sudoku.grid
+                
+                # Generate random order for revealing cells (0 to 80)
+                reveal_order = torch.randperm(81, device=self.device)
+                
+                # Start with completely masked grid at T=0
+                current_grid = torch.zeros((9, 9), dtype=dtype, device=self.device)
+                sequences[i, 0] = current_grid.clone()
+                
+                # Progressively reveal cells according to the random order
+                for t in range(0, 81):
+                    # Get the linear index of the cell to reveal
+                    linear_idx = reveal_order[t]
+                    row = linear_idx // 9
+                    col = linear_idx % 9
+                    
+                    # Reveal the cell
+                    current_grid[row, col] = complete_grid[row, col]
+                    sequences[i, t+1] = current_grid.clone()
+        else:
+            dtype = np.int8 if self.bit_width == '4bit' else np.int32
+            sequences = np.zeros((size, 82, 9, 9), dtype=dtype)
+            
+            for i in range(size):
+                # Generate a complete valid sudoku
+                complete_sudoku = self.generate_valid_sudoku()
+                complete_grid = complete_sudoku.grid
+                
+                # Generate random order for revealing cells (0 to 80)
+                reveal_order = np.random.permutation(81)
+                
+                # Start with completely masked grid at T=0
+                current_grid = np.zeros((9, 9), dtype=dtype)
+                sequences[i, 0] = current_grid.copy()
+                
+                # Progressively reveal cells according to the random order
+                for t in range(0, 81):
+                    # Get the linear index of the cell to reveal
+                    linear_idx = reveal_order[t]
+                    row = linear_idx // 9
+                    col = linear_idx % 9
+                    
+                    # Reveal the cell
+                    current_grid[row, col] = complete_grid[row, col]
+                    sequences[i, t+1] = current_grid.copy()
+        
+        return sequences
+    
+    def visualize_diffusion_sequence(self, sequence, sequence_idx=0, timesteps=None, cols=9):
+        """
+        Visualize a diffusion sequence showing the progression from masked to solved.
+        
+        Args:
+            sequence: Array of shape (size, 81l2, 9, 9) from generate_diffusion_sequence
+            sequence_idx: Which sequence to visualize (default: 0)
+            timesteps: Period for showing timesteps. If None, shows every 10 timesteps. 
+                      If an integer, shows every timesteps-th timestep (e.g., timesteps=5 shows t=0,5,10,15,...)
+            cols: Number of columns in the grid layout (default: 5)
+        """
+        # Extract the specific sequence
+        seq = sequence[sequence_idx]  # Shape: (81, 9, 9)
+        
+        # Determine which timesteps to show
+        if timesteps is None:
+            # Show every 10 timesteps by default
+            timesteps_to_show = list(range(1, 82, 10))
+        else:
+            # Show every timesteps-th timestep
+            timesteps_to_show = list(range(1, 82, timesteps))
+        
+        # Calculate grid layout
+        n_plots = len(timesteps_to_show)
+        rows = (n_plots + cols - 1) // cols
+        
+        # Create figure
+        fig, axes = plt.subplots(rows, cols, figsize=(3 * cols, 3 * rows))
+        if rows == 1 and cols == 1:
+            axes = np.array([[axes]])
+        elif rows == 1 or cols == 1:
+            axes = axes.reshape(rows, cols)
+        
+        # Plot each timestep
+        for idx, t in enumerate(timesteps_to_show):
+            row = idx // cols
+            col = idx % cols
+            ax = axes[row, col]
+            
+            # Get the grid at this timestep
+            grid = seq[t]
+            if self.backend == 'torch':
+                grid = grid.cpu().numpy()
+            
+            # Draw the grid
+            for i in range(10):
+                linewidth = 2 if i % 3 == 0 else 0.5
+                ax.plot([0, 9], [i, i], 'k-', linewidth=linewidth)
+                ax.plot([i, i], [0, 9], 'k-', linewidth=linewidth)
+            
+            # Add numbers to the grid
+            for i in range(9):
+                for j in range(9):
+                    if grid[i, j] != 0:
+                        val = int(grid[i, j])
+                        ax.text(j + 0.5, 8.5 - i, str(val), ha='center', va='center', fontsize=16)
+            
+            # Set axis properties
+            ax.set_xlim(0, 9)
+            ax.set_ylim(0, 9)
+            ax.set_aspect('equal')
+            ax.axis('off')
+            ax.set_title(f'T={t}', fontsize=12)
+        
+        # Hide any unused subplots
+        for idx in range(n_plots, rows * cols):
+            row = idx // cols
+            col = idx % cols
+            axes[row, col].axis('off')
+        
+        plt.tight_layout()
+        plt.show()
