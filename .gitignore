@@ -1,0 +1,32 @@
+# Large cache files
+cache/*.pt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Weights & Biases
+wandb/
+
+# Model checkpoints (if large)
+*.ckpt
+
+# OS files
+.DS_Store
+Thumbs.db
+
